@@ -245,6 +245,28 @@ export default function useTTS({ selectedProfile, setSelectedProfile, loadHistor
       const ac = new AbortController();
       abortTimer = setTimeout(() => ac.abort(), 21 * 60 * 1000);
 
+      const hasConfiguredBackend = Boolean(
+        (typeof window !== 'undefined' && window.localStorage?.getItem('ov_backend_url')) ||
+        (typeof window !== 'undefined' && window.__OMNIVOICE_API_BASE__) ||
+        import.meta.env?.VITE_OMNIVOICE_API ||
+        import.meta.env?.VITE_API_URL ||
+        (typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || import.meta.env?.DEV))
+      );
+
+      if (!hasConfiguredBackend) {
+        // Direct Web Speech synthesis on Vercel/Web when remote backend is not connected
+        toast('Đang đọc giọng nói bằng Web Speech Engine...', { icon: '🎙️' });
+        const res = await speakWithWebSpeech({ text, language, speed });
+        if (res?.blob && useAppStore.getState().autoPlayPreview) {
+          try {
+            await playBlobAudio(res.blob, { label: t('player.generated_audio') });
+          } catch (e) {}
+        }
+        toast.success('Đã đọc giọng nói thành công!');
+        playPing();
+        return;
+      }
+
       // #1330 — one voice for both delivery paths. A dropped chunk is not an
       // error (the audio is real), so it is a persistent-ish warning toast
       // rather than a thrown failure, and it quotes the lost text so the user
@@ -407,21 +429,27 @@ export default function useTTS({ selectedProfile, setSelectedProfile, loadHistor
       } else {
         const isNetworkOrFetch =
           err?.name === 'TypeError' ||
+          err?.name === 'ApiError' ||
+          err?.status === 404 ||
+          err?.status === 0 ||
           err?.message?.toLowerCase().includes('failed to fetch') ||
           err?.message?.toLowerCase().includes('network') ||
           err?.message?.toLowerCase().includes('cannot reach') ||
-          err?.message?.toLowerCase().includes('fetch');
+          err?.message?.toLowerCase().includes('fetch') ||
+          err?.message?.toLowerCase().includes('404') ||
+          err?.message?.toLowerCase().includes('misrouted') ||
+          err?.message?.toLowerCase().includes('không phải là backend');
 
         if (isNetworkOrFetch) {
           try {
-            toast('Đang phát giọng nói bằng Web Speech Engine trình duyệt...', { icon: '🎙️' });
+            toast('Đang phát giọng nói bằng Web Speech Engine...', { icon: '🎙️' });
             const res = await speakWithWebSpeech({ text, language, speed });
             if (res?.blob && useAppStore.getState().autoPlayPreview) {
               try {
                 await playBlobAudio(res.blob, { label: t('player.generated_audio') });
               } catch (e) {}
             }
-            toast.success('Đã đọc giọng nói thành công! (Kết nối Remote Backend để dùng mô hình AI nâng cao)');
+            toast.success('Đã đọc giọng nói thành công!');
             playPing();
             return;
           } catch (webErr) {

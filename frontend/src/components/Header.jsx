@@ -418,17 +418,22 @@ export default function Header({
                     ? 'success'
                     : modelStatus === 'loading'
                       ? 'warn'
-                      : 'neutral'
+                      : isDesktop
+                        ? 'neutral'
+                        : 'accent'
                 }
                 size="xs"
                 dot
                 className={`[border:none]! bg-transparent! p-0! normal-case! tracking-normal! font-semibold! ${modelStatus === 'loading' ? 'ui-badge--pulse' : ''}`}
+                title={!isDesktop && modelStatus !== 'ready' ? 'Đang hoạt động ở chế độ Web Speech Engine của trình duyệt' : undefined}
               >
                 {modelStatus === 'ready'
                   ? t('header.status_ready')
                   : modelStatus === 'loading'
                     ? t('header.status_loading')
-                    : t('header.status_idle')}
+                    : isDesktop
+                      ? t('header.status_idle')
+                      : 'Web Engine'}
               </Badge>
             </span>
             {onFlushMemory && (
